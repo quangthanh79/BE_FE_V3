@@ -96,6 +96,7 @@ router.post('/add_dialog',verify, async (req, res) => {
             });    
             }
             var tokenDevice = partner.tokenFCM;
+            console.log("tokenDevice: "+ tokenDevice);
             const message = {
                 notification: {
                     title: user.name,
@@ -125,92 +126,92 @@ router.post('/add_dialog',verify, async (req, res) => {
 });
 
 
+// Not API
+// router.post('/create_conversation',verify, async (req,res) => {
+//     let token = req.query.token;
+//     let partnerId = req.query.partner_id;
+//     let contentFirst = req.query.messageFirst;
 
-router.post('/create_conversation',verify, async (req,res) => {
-    let token = req.query.token;
-    let partnerId = req.query.partner_id;
-    let contentFirst = req.query.messageFirst;
+//     if (token === undefined){
+//         return callRes(res, responseError.PARAMETER_IS_NOT_ENOUGH, 'token');
+//     }
+//     if (typeof token != "string"){
+//         return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'token');
+//     }
+//     if (partnerId === undefined){
+//         return callRes(res, responseError.PARAMETER_IS_NOT_ENOUGH, 'partnerId');
+//     }
+//     if (typeof partnerId != "string"){
+//         return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'partnerId');
+//     }
 
-    if (token === undefined){
-        return callRes(res, responseError.PARAMETER_IS_NOT_ENOUGH, 'token');
-    }
-    if (typeof token != "string"){
-        return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'token');
-    }
-    if (partnerId === undefined){
-        return callRes(res, responseError.PARAMETER_IS_NOT_ENOUGH, 'partnerId');
-    }
-    if (typeof partnerId != "string"){
-        return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'partnerId');
-    }
+//     if (contentFirst === undefined){
+//         return callRes(res, responseError.PARAMETER_IS_NOT_ENOUGH, 'content');
+//     }
+//     if (typeof contentFirst != "string"){
+//         return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'content');
+//     }
 
-    if (contentFirst === undefined){
-        return callRes(res, responseError.PARAMETER_IS_NOT_ENOUGH, 'content');
-    }
-    if (typeof contentFirst != "string"){
-        return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'content');
-    }
+//     let id = req.user.id;
+//     console.log("ID user: "+ id);
+//     let thisUser = await User.findById(id);
+//     if (thisUser.isBlocked){
+//         return callRes(res, responseError.USER_IS_NOT_VALIDATED, 'Your account has been blocked');
+//     }
 
-    let id = req.user.id;
-    console.log("ID user: "+ id);
-    let thisUser = await User.findById(id);
-    if (thisUser.isBlocked){
-        return callRes(res, responseError.USER_IS_NOT_VALIDATED, 'Your account has been blocked');
-    }
+//     try{
+//         var partnerUser = await User.findById(partnerId);
+//     } catch (err){
+//         return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'Cannot find partner');
+//     }
+//     if (partnerUser == null){
+//         return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'Cannot find partner');
+//     }
 
-    try{
-        var partnerUser = await User.findById(partnerId);
-    } catch (err){
-        return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'Cannot find partner');
-    }
-    if (partnerUser == null){
-        return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'Cannot find partner');
-    }
+//     try{
+//         var targetConversation1 = await Conversation.findOne({ firstUser: partnerId , secondUser: id});
+//         var targetConversation2 = await Conversation.findOne({ secondUser: partnerId , firstUser: id});
+//     }catch (err){
+//         return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'partner_id');
+//     }
+//     if (targetConversation1){
+//         return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'Conversation existed');
+//     }
+//     if (targetConversation2){
+//         return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'Conversation existed');
+//     }
+//     else {
+//             // Not existed conversation
+//         let conversationId = await Conversation.find().count();
+//         const newConversation = new Conversation({
+//             conversationId,
+//             firstUser: id,
+//             secondUser: partnerId,
+//             });
+//         newConversation.dialog.push({
+//             dialogId: newConversation.dialog.length,
+//             sender: id,
+//             created: String(Math.floor(Date.now())),
+//             content: contentFirst
+//             });
+//         try {
 
-    try{
-        var targetConversation1 = await Conversation.findOne({ firstUser: partnerId , secondUser: id});
-        var targetConversation2 = await Conversation.findOne({ secondUser: partnerId , firstUser: id});
-    }catch (err){
-        return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'partner_id');
-    }
-    if (targetConversation1){
-        return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'Conversation existed');
-    }
-    if (targetConversation2){
-        return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'Conversation existed');
-    }
-    else {
-            // Not existed conversation
-        let conversationId = await Conversation.find().count();
-        const newConversation = new Conversation({
-            conversationId,
-            firstUser: id,
-            secondUser: partnerId,
-            });
-        newConversation.dialog.push({
-            dialogId: newConversation.dialog.length,
-            sender: id,
-            created: String(Math.floor(Date.now())),
-            content: contentFirst
-            });
-        try {
-
-            let saved = await newConversation.save();
+//             let saved = await newConversation.save();
       
-            let data = {
-                id: saved.id,
-                firstUser: saved.firstUser,
-                secondUser: saved.secondUser,
-                messageFirst: contentFirst
-            }
-            return callRes(res, responseError.OK, data);
-            } 
-        catch (error) {
-            return callRes(res, responseError.CAN_NOT_CONNECT_TO_DB, error.message);
-            }
-    }
+//             let data = {
+//                 id: saved.id,
+//                 firstUser: saved.firstUser,
+//                 secondUser: saved.secondUser,
+//                 messageFirst: contentFirst
+//             }
+//             return callRes(res, responseError.OK, data);
+//             } 
+//         catch (error) {
+//             return callRes(res, responseError.CAN_NOT_CONNECT_TO_DB, error.message);
+//             }
+//     }
     
-})
+// })
 
 router.post('/get_conversation', verify, async (req, res) => {
     let token = req.query.token;

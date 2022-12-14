@@ -436,7 +436,7 @@ router.post('/get_user_friends', verify, async (req, res) => {
       }
       friendInfor.user_id = x.friend._id.toString();
       friendInfor.username = friend.name;
-      friendInfor.avatar = x.friend.avatar.url;
+      friendInfor.avatar = friend.avatar.url;
       friendInfor.created = validTime.timeToSecond(x.createdAt) ;
 
       if (!thisUser._id.equals(x.friend._id))
