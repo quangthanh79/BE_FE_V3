@@ -475,13 +475,6 @@ router.post('/add_post', cpUpload, verify, async (req, res, next) => {
         }
 
         for(const item_image of image) {
-            const filetypes = /jpeg|jpg|png/;
-            const mimetype = filetypes.test(item_image.mimetype);
-            // PARAMETER_TYPE_IS_INVALID
-            if(!mimetype) {
-                console.log("Mimetype image is invalid");
-                return setAndSendResponse(res, responseError.PARAMETER_VALUE_IS_INVALID);
-            }
 
             // FILE_SIZE_IS_TOO_BIG
             if (item_image.buffer.byteLength > MAX_SIZE_IMAGE) {
@@ -511,12 +504,6 @@ router.post('/add_post', cpUpload, verify, async (req, res, next) => {
         }
 
         for(const item_video of video) {
-            const filetypes = /mp4/;
-            const mimetype = filetypes.test(item_video.mimetype);
-            if(!mimetype) {
-                console.log("Mimetype video is invalid");
-                return setAndSendResponse(res, responseError.PARAMETER_VALUE_IS_INVALID);
-            }
 
             if (item_video.buffer.byteLength > MAX_SIZE_VIDEO) {
                 console.log("Max video file size");
