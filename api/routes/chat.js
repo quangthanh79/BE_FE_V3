@@ -499,6 +499,7 @@ router.post('/set_read_message', verify, async (req, res) => {
     if (thisUser.isBlocked){
         return callRes(res, responseError.USER_IS_NOT_VALIDATED, 'Your account has been blocked');
     }
+    console.log("PARTNER ID: "+req.query.partner_id);
     if (req.query.partner_id){
         let targetConversation;
         let partnerId = req.query.partner_id;
@@ -511,49 +512,46 @@ router.post('/set_read_message', verify, async (req, res) => {
             return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'Cannot find partner');
         }
         try{
-            var targetConversation1 = await Conversation.findOne({ firstUser: partnerId });
-            var targetConversation2 = await Conversation.findOne({ secondUser: partnerId });
+            var targetConversation1 = await Conversation.findOne({ firstUser: partnerId , secondUser: id});
+            var targetConversation2 = await Conversation.findOne({ secondUser: partnerId , firstUser: id});
         }catch (err){
             return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'partner_id');
         }
         if (targetConversation1){
-            if (targetConversation1.secondUser == id){
-                targetConversation = targetConversation1;
-            }else {
-                return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'Cannot find conversation');
-            }
+            console.log("1");
+            console.log("ID SECOND: "+targetConversation1.secondUser);
+            targetConversation = targetConversation1;
         }
         else if (targetConversation2){
-            if (targetConversation2.firstUser == id){
-                targetConversation = targetConversation2;
-            }else {
-                return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'Cannot find conversation');
+            console.log("2");
+            targetConversation = targetConversation2;
+        }
+        
+        if(targetConversation){
+            for (dialog in targetConversation.dialog){
+                targetConversation.dialog[dialog].unread = "0"  ;
             }
+            targetConversation = await targetConversation.save();
+        }else{
+            return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, '4 Cannot find conversation');
         }
-        else {
-            return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'Cannot find conversation');
-        }
-        for (dialog in targetConversation.dialog){
-            targetConversation.dialog[dialog].unread = "0"  ;
-        }
-        targetConversation = await targetConversation.save();
     }
-    else if (req.query.conversation_id){
-        let targetConversation;
-        let conversationId = req.query.conversation_id;
-        targetConversation = await Conversation.findOne({ conversationId: conversationId });
-        if (targetConversation == null){
-            return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'Cannot find conversation');
-        }
-        if (targetConversation.firstUser != id && targetConversation.secondUser != id){
-            return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'This is not your conversation');
-        }
-        for (dialog in targetConversation.dialog){
-            targetConversation.dialog[dialog].unread = "0";
-            await targetConversation.save();
-        }
-        targetConversation = await targetConversation.save();
-    }
+    // else if (req.query.conversation_id){
+    //     let targetConversation;
+    //     let conversationId = req.query.conversation_id;
+    //     targetConversation = await Conversation.findOne({ conversationId: conversationId });
+    //     if (targetConversation == null){
+    //         return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'Cannot find conversation');
+    //     }
+    //     if (targetConversation.firstUser != id && targetConversation.secondUser != id){
+    //         return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'This is not your conversation');
+    //     }
+    //     for (dialog in targetConversation.dialog){
+    //         targetConversation.dialog[dialog].unread = "0";
+    //         await targetConversation.save();
+    //     }
+    //     targetConversation = await targetConversation.save();
+    // }
     else{
         return callRes(res, responseError.PARAMETER_IS_NOT_ENOUGH, 'conversation_id or partner_id');
     }
@@ -655,7 +653,7 @@ router.post('/get_list_conversation', verify, async (req, res) => {
         conversationInfo.lastMessage.message = lastDialog.content;
         conversationInfo.lastMessage.created = lastDialog.created;
         conversationInfo.lastMessage.senderId = lastDialog.sender;
-        if (lastDialog.unread === undefined || lastDialog.unread == null){
+        if (lastDialog.unread === undefined || lastDialog.unread == null || lastDialog.unread == "1"){
             conversationInfo.lastMessage.unread = "1";
         }
         else{
