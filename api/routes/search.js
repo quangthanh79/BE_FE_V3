@@ -147,25 +147,31 @@ router.post('/search', verify, (req, res) => {
 
             if (found_posts.length < 1) return callRes(res, responseError.NO_DATA_OR_END_OF_LIST_DATA);
 
-            const data = found_posts.map(post => {
+            const data = {
+                posts: found_posts.map(post => {
                     return {
                         id: post._id,
-                        image: post.image.map(image => {return image.url}),
-                        video: {
+                        video: post.video.url ? {
                             url: post.video.url,
-                            thumb: post.video.url ? "null": undefined
-                        },
+                            thumb: null
+                        }: null,
+                        described: post.described ? post.described: null,
+                        created: post.created.toString(),
+                        modified: post.modified.toString(),
                         like: post.likedUser.length.toString(),
                         comment: post.comments.length.toString(),
                         is_liked: user ? (post.likedUser.includes(user._id) ? "1": "0") : "0",
+                        is_blocked: is_blocked(user, post.author),
+                        can_comment: "1",
+                        can_edit: can_edit(user, post.author),
                         author: post.author ? {
                             id: post.author._id,
-                            username: post.author.name,
-                            avatar: post.author.avatar
-                        } : undefined,
-                        described: post.described,
+                            username: post.author.name ? post.author.name : null,
+                            avatar: post.author.avatar.url ? post.author.avatar.url: null
+                        } : null,
                     }
-                })
+                }),
+            }
             
 
             return res.json({

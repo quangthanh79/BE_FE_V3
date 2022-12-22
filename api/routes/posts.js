@@ -140,7 +140,7 @@ router.post('/get_list_videos', async (req, res) => {
     }
 
     data = {
-        post: slicePosts.map(post => {
+        posts: slicePosts.map(post => {
             return {
                 id: post._id,
                 video: post.video.url ? {
@@ -283,6 +283,106 @@ router.post('/get_list_posts', async (req, res) => {
                         message: "OK",
                         data: data
                     });
+});
+
+//Get list post in profile
+router.post('/get_list_posts_in_profile',verify, async (req, res) => {
+    var {token, index, count} = req.query;
+    // var user;
+    // try {
+    //   user = await User.findById(req.user.id);
+    // } catch (error) {
+    //   return callRes(res, responseError.NO_DATA_OR_END_OF_LIST_DATA, 'user');
+    // }
+    var data;
+    // PARAMETER_IS_NOT_ENOUGH
+    if((index !== 0 && !index) || (count !== 0 && !count)) {
+        console.log("No have parameter index, count");
+        return setAndSendResponse(res, responseError.PARAMETER_IS_NOT_ENOUGH);
+    }
+
+    // PARAMETER_TYPE_IS_INVALID
+    if((index && typeof index !== "string") || (count && typeof count !== "string")
+        || (token && typeof token !== "string")) {
+        console.log("PARAMETER_TYPE_IS_INVALID");
+        return setAndSendResponse(res, responseError.PARAMETER_TYPE_IS_INVALID);
+    }
+
+    if(!validInput.checkNumber(index) || !validInput.checkNumber(count)) {
+        console.log("chi chua cac ki tu so");
+        return setAndSendResponse(res, responseError.PARAMETER_VALUE_IS_INVALID);
+    }
+
+    index = parseInt(index, 10);
+    count = parseInt(count, 10);
+    if(isNaN(index) || isNaN(count)) {
+        console.log("PARAMETER_VALUE_IS_INVALID");
+        return setAndSendResponse(res, responseError.PARAMETER_VALUE_IS_INVALID);
+    }
+
+    var user, posts;
+    try {
+        if(token) {
+            user = await getUserIDFromToken(token);
+            if(user && typeof user == "string") {
+                return setAndSendResponse(res, responseError[user]);
+            }
+        }
+        posts = await Post.find({author: user}).populate('author').exec(function (err, docs) {
+            if (err) console.log("Error on sort:" + err.toString());
+
+            // NO_DATA_OR_END_OF_LIST_DATA
+            if(docs.length < 1) {
+                console.log('No have posts on docs');
+                return setAndSendResponse(res, responseError.NO_DATA_OR_END_OF_LIST_DATA);
+            }
+        
+            let slicePosts = docs.slice(index, index + count);
+        
+            // NO_DATA_OR_END_OF_LIST_DATA
+            if(slicePosts.length < 1) {
+                console.log('No have posts on slice');
+                return setAndSendResponse(res, responseError.NO_DATA_OR_END_OF_LIST_DATA);
+            }
+        
+            data = {
+                posts: slicePosts.map(post => {
+                    return {
+                        id: post._id,
+                        image: post.image.length > 0 ? post.image.map(image => { return {id: image._id, url: image.url};}) : null,
+                        video: post.video.url ? {
+                            url: post.video.url,
+                            thumb: null
+                        }: null,
+                        described: post.described ? post.described : null,
+                        created: post.created.toString(),
+                        modified: post.modified.toString(),
+                        like: post.likedUser.length.toString(),
+                        comment: post.comments.length.toString(),
+                        is_liked: user ? (post.likedUser.includes(user._id) ? "1": "0") : "0",
+                        is_blocked: is_blocked(user, post.author),
+                        can_comment: "1",
+                        can_edit: can_edit(user, post.author),
+                        state: post.status ? post.status : null,
+                        author: post.author ? {
+                            id: post.author._id,
+                            username: post.author.name ? post.author.name : null,
+                            avatar: post.author.avatar.url ? post.author.avatar.url: null
+                        } : null,
+                    }
+                }),
+            }
+        
+            res.status(200).send({
+                                code: "1000",
+                                message: "OK",
+                                data: data
+                            });
+
+          });
+    } catch (err) {
+        return setAndSendResponse(res, responseError.CAN_NOT_CONNECT_TO_DB);
+    }
 });
 
 // @route  POST it4788/post/get_post
