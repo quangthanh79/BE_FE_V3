@@ -287,7 +287,7 @@ router.post('/get_list_posts', async (req, res) => {
 
 //Get list post in profile
 router.post('/get_list_posts_in_profile',verify, async (req, res) => {
-    var {token, index, count} = req.query;
+    var {token, index, count, targetId} = req.query;
     // var user;
     // try {
     //   user = await User.findById(req.user.id);
@@ -300,10 +300,20 @@ router.post('/get_list_posts_in_profile',verify, async (req, res) => {
         console.log("No have parameter index, count");
         return setAndSendResponse(res, responseError.PARAMETER_IS_NOT_ENOUGH);
     }
+    if(!targetId || targetId === '') {
+        console.log("Target Id should not be empty");
+        return setAndSendResponse(res, {
+            statusCode: 400,
+            body: {
+                code: "1002",
+                message: "Target Id should not be empty"
+            }
+        });
+    }
 
     // PARAMETER_TYPE_IS_INVALID
     if((index && typeof index !== "string") || (count && typeof count !== "string")
-        || (token && typeof token !== "string")) {
+        || (token && typeof token !== "string") || (targetId && typeof targetId !== "string")) {
         console.log("PARAMETER_TYPE_IS_INVALID");
         return setAndSendResponse(res, responseError.PARAMETER_TYPE_IS_INVALID);
     }
@@ -328,7 +338,8 @@ router.post('/get_list_posts_in_profile',verify, async (req, res) => {
                 return setAndSendResponse(res, responseError[user]);
             }
         }
-        posts = await Post.find({author: user}).populate('author').exec(function (err, docs) {
+        var targetUser = await User.findById(targetId)
+        posts = await Post.find({author: targetUser}).populate('author').exec(function (err, docs) {
             if (err) console.log("Error on sort:" + err.toString());
 
             // NO_DATA_OR_END_OF_LIST_DATA
@@ -359,10 +370,10 @@ router.post('/get_list_posts_in_profile',verify, async (req, res) => {
                         modified: post.modified.toString(),
                         like: post.likedUser.length.toString(),
                         comment: post.comments.length.toString(),
-                        is_liked: user ? (post.likedUser.includes(user._id) ? "1": "0") : "0",
-                        is_blocked: is_blocked(user, post.author),
+                        is_liked: targetUser ? (post.likedUser.includes(targetUser._id) ? "1": "0") : "0",
+                        is_blocked: is_blocked(targetUser, post.author),
                         can_comment: "1",
-                        can_edit: can_edit(user, post.author),
+                        can_edit: can_edit(targetUser, post.author),
                         state: post.status ? post.status : null,
                         author: post.author ? {
                             id: post.author._id,
