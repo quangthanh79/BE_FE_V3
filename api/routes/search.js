@@ -40,148 +40,129 @@ router.post('/search', verify, (req, res) => {
 
     console.log("searching posts with keyword: " + keyword)
     var found_posts = []
-
-    Post.find(
-        { "described": {$ne: null} }, 
-        (err, posts) => {
-
-            // problem with DB
-            if (err) return setAndSendResponse(res, responseError.CAN_NOT_CONNECT_TO_DB);
-
-            // NO_DATA_OR_END_OF_LIST_DATA
-            if(posts.length < 1) {
-                console.log('No have posts');
-                return setAndSendResponse(res, responseError.NO_DATA_OR_END_OF_LIST_DATA);
-            }
-
-            const newSearch = Search({
-                user: req.user.id,
-                keyword: keyword
-            })
-            newSearch.save()
-
-            // condition 1: match exactly
-            posts.forEach( (post, index, object) => {
-                if (post["described"].toLowerCase().includes(keyword.toLowerCase())){
-                    found_posts.push(post)
-                }
-            });
-
-            posts = posts.filter(item => !found_posts.includes(item))
-
-            // condition 2: enough words and ignore the order
-            var words = keyword.split(" ")
-            posts.forEach( (post, index, object) => {
-                var accepted = true
-                words.forEach(word => {
-                    if (!post["described"].toLowerCase().includes(word.toLowerCase())){
-                        accepted = false;
-                        return;
-                    }
-                })
-                if (accepted) found_posts.push(post)
-            });
-
-            posts = posts.filter(item => !found_posts.includes(item))
-
-            // condition 3: 20% of keyword in described and in the right order
-            num_words = Math.ceil(words.length*0.2)
-            console.log("num words: " + num_words)
-            search_text = []
-            console.log(words.slice(0,1))
-            for( var i=0; i < (words.length-num_words); i++ ){
-                var tmp = []; tmp.push(words[i]);
-                for (var j=i+1; j < (words.length); j++){
-                    var k=j;
-                    while (tmp.length < num_words){
-                        tmp.push(words[k]);
-                        k++;
-                    }
-                    if (tmp.length == num_words){
-                        search_text.push(tmp);
-                        tmp = [words[i]];
-                    }
-                }
-                //search_text.push(words.slice(i, (i+num_words)).join(" "));
-            }
-            console.log(search_text);
-
-            posts.forEach( (post, index, object) => {
-                search_text.forEach(text => {
-                    var accepted = true
-                    for (var i=0; i<text.length; i++){
-                        if (!post["described"].toLowerCase().includes(text[i].toLowerCase())){
-                            accepted = false;
-                            break;
-                        }
-                    }
-                    if (accepted) {
-                        found_posts.push(post);
-                        return;
-                    }
-                })
-            });
-
-            posts = posts.filter(item => !found_posts.includes(item))
-
-            // condition 4: ignore accents
-            posts.forEach( (post, index, object) => {
-                search_text.forEach(text => {
-                    var described = removeAccents(post["described"].toLowerCase())
-                    var accepted = true
-                    for (var i=0; i<text.length; i++){
-                        if (!described.includes(removeAccents(text[i].toLowerCase()))){
-                            accepted = false;
-                            break;
-                        }
-                    }
-                    if (accepted) {
-                        found_posts.push(post);
-                        return;
-                    }
-                })
-            });
-
-            posts = posts.filter(item => !found_posts.includes(item))
-            found_posts = found_posts.slice(index, index+count)
-
-            if (found_posts.length < 1) return callRes(res, responseError.NO_DATA_OR_END_OF_LIST_DATA);
-
-            const data = {
-                posts: found_posts.map(post => {
-                    return {
-                        id: post._id,
-                        video: post.video.url ? {
-                            url: post.video.url,
-                            thumb: null
-                        }: null,
-                        described: post.described ? post.described: null,
-                        created: post.created.toString(),
-                        modified: post.modified.toString(),
-                        like: post.likedUser.length.toString(),
-                        comment: post.comments.length.toString(),
-                        is_liked: user ? (post.likedUser.includes(user._id) ? "1": "0") : "0",
-                        is_blocked: is_blocked(user, post.author),
-                        can_comment: "1",
-                        can_edit: can_edit(user, post.author),
-                        author: post.author ? {
-                            id: post.author._id,
-                            username: post.author.name ? post.author.name : null,
-                            avatar: post.author.avatar.url ? post.author.avatar.url: null
-                        } : null,
-                    }
-                }),
-            }
-            
-
-            return res.json({
-                "code": "1000",
-                "message": "OK",
-                "data": data
-            })
-
+    Post.find({ "described": {$ne: null}}).populate('author').exec((err, posts) => {        // problem with DB
+        if (err) return setAndSendResponse(res, responseError.CAN_NOT_CONNECT_TO_DB);
+        // NO_DATA_OR_END_OF_LIST_DATA
+        if(posts.length < 1) {
+            console.log('No have posts');
+            return setAndSendResponse(res, responseError.NO_DATA_OR_END_OF_LIST_DATA);
         }
-    )
+
+        const newSearch = Search({
+            user: req.user.id,
+            keyword: keyword
+        })
+        newSearch.save()
+
+        // condition 1: match exactly
+        posts.forEach( (post, index, object) => {
+            if (post["described"].toLowerCase().includes(keyword.toLowerCase())){
+                found_posts.push(post)
+            }
+        });
+        posts = posts.filter(item => !found_posts.includes(item))
+        // condition 2: enough words and ignore the order
+        var words = keyword.split(" ")
+        posts.forEach( (post, index, object) => {
+            var accepted = true
+            words.forEach(word => {
+                if (!post["described"].toLowerCase().includes(word.toLowerCase())){
+                    accepted = false;
+                    return;
+                }
+            })
+            if (accepted) found_posts.push(post)
+        });
+        posts = posts.filter(item => !found_posts.includes(item))
+        // condition 3: 20% of keyword in described and in the right order
+        num_words = Math.ceil(words.length*0.2)
+        search_text = []
+        console.log(words.slice(0,1))
+        for( var i=0; i < (words.length-num_words); i++ ){
+            var tmp = []; tmp.push(words[i]);
+            for (var j=i+1; j < (words.length); j++){
+                var k=j;
+                while (tmp.length < num_words){
+                    tmp.push(words[k]);
+                    k++;
+                }
+                if (tmp.length == num_words){
+                    search_text.push(tmp);
+                    tmp = [words[i]];
+                }
+            }
+            //search_text.push(words.slice(i, (i+num_words)).join(" "));
+        }
+        posts.forEach( (post, index, object) => {
+            search_text.forEach(text => {
+                var accepted = true
+                for (var i=0; i<text.length; i++){
+                    if (!post["described"].toLowerCase().includes(text[i].toLowerCase())){
+                        accepted = false;
+                        break;
+                    }
+                }
+                if (accepted) {
+                    found_posts.push(post);
+                    return;
+                }
+            })
+        });
+
+        posts = posts.filter(item => !found_posts.includes(item))
+
+        // condition 4: ignore accents
+        posts.forEach( (post, index, object) => {
+            search_text.forEach(text => {
+                var described = removeAccents(post["described"].toLowerCase())
+                var accepted = true
+                for (var i=0; i<text.length; i++){
+                    if (!described.includes(removeAccents(text[i].toLowerCase()))){
+                        accepted = false;
+                        break;
+                    }
+                }
+                if (accepted) {
+                    found_posts.push(post);
+                    return;
+                }
+            })
+        });
+        posts = posts.filter(item => !found_posts.includes(item))
+found_posts = found_posts.slice(index, index+count)
+        if (found_posts.length < 1) return callRes(res, responseError.NO_DATA_OR_END_OF_LIST_DATA);
+        const data = {
+            posts: found_posts.map(  (post) => {
+                return {
+                    id: post._id,
+                    image: post.image.length > 0 ? post.image.map(image => { return {id: image._id, url: image.url};}) : null,
+                    video: post.video.url ? {
+                        url: post.video.url,
+                        thumb: null
+                    }: null,
+                    described: post.described ? post.described: null,
+                    created: post.created.toString(),
+                    modified: post.modified.toString(),
+                    like: post.likedUser.length.toString(),
+                    comment: post.comments.length.toString(),
+                    is_liked: user ? (post.likedUser.includes(user._id) ? "1": "0") : "0",
+                    author: post.author ? {
+                        id: post.author._id,
+                        username: post.author.name ? post.author.name : null,
+                        avatar: (post.author.avatar ? post.author.avatar.url : null) ? post.author.avatar.url: null
+                    } : null,
+                }
+            }),
+        }
+        
+
+        return res.json({
+            "code": "1000",
+            "message": "OK",
+            "data": data
+        })
+
+    })
   
 })
 

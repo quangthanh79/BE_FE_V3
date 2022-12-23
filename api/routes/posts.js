@@ -330,7 +330,7 @@ router.post('/get_list_posts_in_profile',verify, async (req, res) => {
         return setAndSendResponse(res, responseError.PARAMETER_VALUE_IS_INVALID);
     }
 
-    var user, posts;
+    var user;
     try {
         if(token) {
             user = await getUserIDFromToken(token);
@@ -339,7 +339,7 @@ router.post('/get_list_posts_in_profile',verify, async (req, res) => {
             }
         }
         var targetUser = await User.findById(targetId)
-        posts = await Post.find({author: targetUser}).populate('author').exec(function (err, docs) {
+        Post.find({author: targetUser}).populate('author').exec(function (err, docs) {
             if (err) console.log("Error on sort:" + err.toString());
 
             // NO_DATA_OR_END_OF_LIST_DATA
