@@ -642,8 +642,9 @@ router.post('/add_post', cpUpload, verify, async (req, res, next) => {
             code: "1000",
             message: "OK",
             data: {
+                video: savedPost.video.url??'',
+                images: savedPost.image??[],
                 id: savedPost._id,
-                url: null
             }
         });
     } catch (err) {
