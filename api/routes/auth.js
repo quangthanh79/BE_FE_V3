@@ -449,7 +449,7 @@ router.post("/change_info_after_signup", verify, uploader.single('avatar'), asyn
                  avatar: user.avatar.url
              }
          }
-         res.json({ code, message, data });
+         res.json(data);
          return;
     }
     else{
@@ -473,7 +473,7 @@ router.post("/change_info_after_signup", verify, uploader.single('avatar'), asyn
                 avatar: null
             }
         }
-        res.json({ code, message, data });
+        res.json(data);
         return;
     }
 
