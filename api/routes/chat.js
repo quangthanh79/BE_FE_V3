@@ -274,8 +274,10 @@ router.post('/get_conversation', verify, async (req, res) => {
         if(indexLast == 0){
             
         }else{
+            let partnerUser = await User.findById(partnerId);
             for (let i = indexLast-1; i >= endFor; i--){
-                console.log("X:" + i);
+            // for (let i = endFor; i <= indexLast-1; i++){
+                let targetUser;
                 let x = targetConversation.dialog[i];
                 let dialogInfo = {
                     message: null,
@@ -288,14 +290,16 @@ router.post('/get_conversation', verify, async (req, res) => {
                         avatar: null
                     }
                 }
-                let targetUser;
-                targetUser = await User.findById(x.sender);
-                
-
+                if(x.sender == partnerId){
+                    targetUser = partnerUser;
+                }else{
+                    targetUser = thisUser;
+                }
+                console.log(targetUser.name);
+                console.log("-----------------");
                 if (x.content === undefined || x.dialogId === undefined || x.created === undefined || x.content === '' || x.dialogId === '' || x.created === ''){
                     continue;
                 }
-                console.log("BBBBBBBB");
                 dialogInfo.message = x.content;
                 dialogInfo.message_id = x.dialogId;
                 dialogInfo.unread = x.unread;
