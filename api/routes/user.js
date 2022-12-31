@@ -65,9 +65,9 @@ router.post ('/get_user_info', async (req, res) => {
     if (!user) return callRes(res, responseError.NO_DATA_OR_END_OF_LIST_DATA, 'user');
     if (tokenUser && user_id != tokenUser.id && user.blockedList ) {
       let index = user.blockedList.findIndex(element => element.user._id.equals(tokenUser.id));
-      if (index >= 0) return callRes(res, responseError.USER_IS_NOT_VALIDATED, 'bị block rồi em ơi, khổ quá');
+      if (index >= 0) return callRes(res, responseError.USER_IS_NOT_VALIDATED, 'BLOCKED');
       let index1 = tokenUser.blockedList.findIndex(element => element.user._id.equals(user.id));
-      if (index1 >= 0) return callRes(res, responseError.USER_IS_NOT_VALIDATED, 'bị block rồi em ơi, khổ quá');
+      if (index1 >= 0) return callRes(res, responseError.USER_IS_NOT_VALIDATED, 'BLOCKING');
 
     }
     data.id = user._id.toString();
