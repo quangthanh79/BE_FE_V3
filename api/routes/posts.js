@@ -772,7 +772,7 @@ MAXIMUM_NUMBER_OF_IMAGES
 MAX_WORD_POST cua described
 */
 router.post('/edit_post', cpUpload, verify, async (req, res) => {
-    var { id, status, image_del, image_sort, described, auto_accept, auto_block } = req.query;
+    var { id, described, status} = req.query;
     var image, video;
     if(req.files) {
         image = req.files.image;
@@ -780,36 +780,13 @@ router.post('/edit_post', cpUpload, verify, async (req, res) => {
     }
     var user = req.user;
 
-    if(image_del) {
-        try {
-            image_del = JSON.parse(image_del);
-        } catch (err) {
-            console.log("image_del parse loi PARAMETER_TYPE_IS_INVALID");
-            return setAndSendResponse(res, responseError.PARAMETER_VALUE_IS_INVALID);
-        }
-        if(!Array.isArray(image_del)) {
-            console.log("image_del PARAMETER_TYPE_IS_INVALID");
-            return setAndSendResponse(res, responseError.PARAMETER_VALUE_IS_INVALID);
-        }
-        for(const id_image_del of image_del) {
-            if(typeof id_image_del !== "string") {
-                console.log("image_del element PARAMETER_TYPE_IS_INVALID");
-                return setAndSendResponse(res, responseError.PARAMETER_TYPE_IS_INVALID);
-            }
-        }
-        image_del = image_del.filter((item, i, ar) => ar.indexOf(item) === i);
-    } else {
-        image_del = [];
-    }
-
-    // PARAMETER_IS_NOT_ENOUGH
-    if(id !== 0 && !id) {
-        console.log("No have parameter id");
+    if(!described && !image && !video) {
+        console.log("Khong co described, image, video");
         return setAndSendResponse(res, responseError.PARAMETER_IS_NOT_ENOUGH);
     }
 
     // PARAMETER_TYPE_IS_INVALID
-    if((id && typeof id !== "string") || (described && typeof described !== "string") || (status && typeof status !== "string")) {
+    if((described && typeof described !== "string") || (status && typeof status !== "string")) {
         console.log("PARAMETER_TYPE_IS_INVALID");
         return setAndSendResponse(res, responseError.PARAMETER_TYPE_IS_INVALID);
     }
@@ -825,10 +802,10 @@ router.post('/edit_post', cpUpload, verify, async (req, res) => {
     }
 
     if(image && video) {
-        console.log("Have image and video gui di");
+        console.log("Have image and video");
         return setAndSendResponse(res, responseError.UPLOAD_FILE_FAILED);
     }
-
+    
     let post;
     try {
         post = await Post.findById(id);
@@ -850,60 +827,57 @@ router.post('/edit_post', cpUpload, verify, async (req, res) => {
         console.log("Not Access");
         return setAndSendResponse(res, responseError.NOT_ACCESS);
     }
-
-    // Check gia tri image_del hop le
-    if(image_del && image_del.length > 0) {
-        for(const id_image_del of image_del) {
-            let isInvalid = true;
-            for(const image of post.image) {
-                if(image.id == id_image_del) {
-                    isInvalid = false;
-                }
-            }
-            if(isInvalid) {
-                console.log("Sai id");
-                return setAndSendResponse(res, responseError.PARAMETER_VALUE_IS_INVALID);
-            }
-        }
-
-        // Xoa anh
-        for(const id_image_del of image_del) {
-            console.log("xoa anh");
-            var i;
-            for(i=0; i < post.image.length; i++) {
-                if(post.image[i]._id == id_image_del) {
-                    break;
-                }
-            }
-            try {
-                await deleteRemoteFile(post.image[i].filename);
-            } catch (err) {
-                return setAndSendResponse(res, responseError.UNKNOWN_ERROR);
-            }
-            post.image.splice(i, 1);
+    post.image = [];
+    post.video = null;
+    post.described = described;
+    if(post.image != null) {
+        for(var e in post.image) {
+            deleteRemoteFile(post.image[e].filename);
         }
     }
+    if(post.video != null) {
+        if(post.video.filename) deleteRemoteFile(post.video.filename);
+    }
 
-    let promises, file;
+    let promises;
 
-    if(video && !image) {
-        if(post.image.length != 0) {
-            console.log("Have image and video up video");
+    if(image) {
+        // MAXIMUM_NUMBER_OF_IMAGES
+        if(image.length > MAX_IMAGE_NUMBER) {
+            console.log("MAXIMUM_NUMBER_OF_IMAGES");
+            return setAndSendResponse(res, responseError.MAXIMUM_NUMBER_OF_IMAGES);
+        }
+
+        for(const item_image of image) {
+
+            // FILE_SIZE_IS_TOO_BIG
+            if (item_image.buffer.byteLength > MAX_SIZE_IMAGE) {
+                console.log("FILE_SIZE_IS_TOO_BIG");
+                return setAndSendResponse(res, responseError.FILE_SIZE_IS_TOO_BIG);
+            }
+        }
+
+        promises = image.map(item_image => {
+            return uploadFile(item_image);
+        });
+        try {
+            const file = await Promise.all(promises);
+            post.image = file;
+        } catch (err) {
+            console.error(err);
+            console.log("UPLOAD_FILE_FAILED");
             return setAndSendResponse(res, responseError.UPLOAD_FILE_FAILED);
         }
 
+    }
+
+    if(video) {
         if(video.length > MAX_VIDEO_NUMBER) {
             console.log("MAX_VIDEO_NUMBER");
             return setAndSendResponse(res, responseError.PARAMETER_VALUE_IS_INVALID);
         }
 
         for(const item_video of video) {
-            const filetypes = /mp4/;
-            const mimetype = filetypes.test(item_video.mimetype);
-            if(!mimetype) {
-                console.log("Mimetype video is invalid");
-                return setAndSendResponse(res, responseError.PARAMETER_VALUE_IS_INVALID);
-            }
 
             if (item_video.buffer.byteLength > MAX_SIZE_VIDEO) {
                 console.log("Max video file size");
@@ -911,90 +885,33 @@ router.post('/edit_post', cpUpload, verify, async (req, res) => {
             }
         }
 
-        promises = video.map(video => {
+        promises = req.files.video.map(video => {
             return uploadFile(video);
         });
-
         try {
-            if(post.video.url) {
-                await deleteRemoteFile(post.video.filename);
-            }
-        } catch (err) {
-            return setAndSendResponse(res, responseError.UNKNOWN_ERROR);
-        }
-
-        try {
-            file = await Promise.all(promises);
+            const file = await Promise.all(promises);
             post.video = file[0];
         } catch (err) {
-            console.log("Upload fail");
-            return setAndSendResponse(res, responseError.UPLOAD_FILE_FAILED);
-        }
-    }
-
-    if(image && !video) {
-        if(post.video.url) {
-            console.log("Have image and video up anh");
+            console.log("UPLOAD_FILE_FAILED");
             return setAndSendResponse(res, responseError.UPLOAD_FILE_FAILED);
         }
 
-        for(const item_image of image) {
-            const filetypes = /jpeg|jpg|png/;
-            const mimetype = filetypes.test(item_image.mimetype);
-            if(!mimetype) {
-                console.log("Mimetype image is invalid");
-                return setAndSendResponse(res, responseError.PARAMETER_VALUE_IS_INVALID);
-            }
 
-            if (item_image.buffer.byteLength > MAX_SIZE_IMAGE) {
-                console.log("Max image file size");
-                return setAndSendResponse(res, responseError.FILE_SIZE_IS_TOO_BIG);
-            }
-        }
-
-        if(image.length + post.image.length > MAX_IMAGE_NUMBER) {
-            console.log("Max image number");
-            return setAndSendResponse(res, responseError.MAXIMUM_NUMBER_OF_IMAGES);
-        }
-
-        promises = image.map(item_image => {
-            return uploadFile(item_image);
-        });
-
-        try {
-            file = await Promise.all(promises);
-            for(let file_item of file) {
-                post.image.push(file_item);
-            }
-        } catch (err) {
-            console.log("Upload fail");
-            return setAndSendResponse(res, responseError.UPLOAD_FILE_FAILED);
-        }
-    }
-
-    if(described) {
-        console.log("Have described");
-        if(countWord(described) > MAX_WORD_POST) {
-            console.log("MAX_WORD_POST");
-            return setAndSendResponse(res, responseError.PARAMETER_VALUE_IS_INVALID);
-        }
-        post.described = described;
-    }
-
-    if(status) {
-        console.log("Have status");
-        post.status = status;
     }
 
     try {
-        post.modified = Math.floor(Date.now() / 1000);
         const savedPost = await post.save();
-        return res.status(200).send({
+        return res.status(201).send({
             code: "1000",
-            message: "OK"
+            message: "OK",
+            data: {
+                video: savedPost.video.url??'',
+                images: savedPost.image??[],
+                id: savedPost._id,
+            }
         });
     } catch (err) {
-        console.log("Edit fail");
+        console.log("CAN_NOT_CONNECT_TO_DB");
         return setAndSendResponse(res, responseError.CAN_NOT_CONNECT_TO_DB);
     }
 })
