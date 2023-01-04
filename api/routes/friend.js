@@ -242,7 +242,7 @@ router.post('/set_accept_friend', verify, async (req, res) => {
   let thisUser, sentUser;
 
   // user_id là id của người nhận request friend
-  // is_accept : 0 là từ chối, 1 là đồng ý
+  // is_accept : 0 là từ chối, 1 là đồng ý, -1 là hủy kết bạn
   let { user_id, is_accept } = req.query;
   if ( user_id === undefined|| is_accept === undefined)
     return callRes(res, responseError.PARAMETER_IS_NOT_ENOUGH, 'user_id, is_accept');
@@ -251,7 +251,7 @@ router.post('/set_accept_friend', verify, async (req, res) => {
   if (!checkInput.checkIsInteger (is_accept))
     return callRes(res, responseError.PARAMETER_TYPE_IS_INVALID, 'is_accept');
   is_accept = parseInt(is_accept, 10);
-  if (is_accept != 0 && is_accept != 1)
+  if (is_accept != 0 && is_accept != 1 && is_accept != -1)
     return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'is_accept');
   let id = req.user.id;
   if (id == user_id) {
@@ -302,6 +302,21 @@ router.post('/set_accept_friend', verify, async (req, res) => {
         thisUser = await thisUser.save();
         sentUser = await sentUser.save();
         return callRes(res, responseError.OK);
+      } else if (is_accept == -1) {
+        // hủy bạn bên gửi
+        let indexExist1 = thisUser.friends.findIndex(element =>
+          element.friend._id.equals(sentUser._id))
+        if (indexExist1 < 0) 
+          return callRes(res, responseError.METHOD_IS_INVALID, 'Không phải bạn bè');
+        if (indexExist1 >= 0) thisUser.friends.splice(indexExist1, 1);
+        // hủy bạn bên nhận
+        let indexExist2 = sentUser.friends.findIndex(element =>
+          element.friend._id.equals(thisUser._id))
+        if (indexExist2 >= 0) sentUser.friends.splice(indexExist2, 1);
+        // save
+        thisUser = await thisUser.save();
+        sentUser = await sentUser.save();
+        return callRes(res, responseError.OK, "Hủy kết bạn thành công");
       }
 
     } catch (error) {
