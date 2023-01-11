@@ -53,6 +53,7 @@ router.post('/get_requested_friends', verify, async (req, res) => {
         avatar: null, // link avatar người gửi req
         same_friends: null, // số bạn chung
         created: null, // thời gian gần nhất req
+        is_friend: "NOT_FRIEND"
       }
       let sentUserID = thisUser.friendRequestReceived[i].fromUser.toString();
       sentUser = await User.findById(sentUserID)
@@ -63,6 +64,7 @@ router.post('/get_requested_friends', verify, async (req, res) => {
       newElement.username = sentUser.name;
       newElement.avatar = sentUser.avatar.url;
       newElement.same_friends = 0;
+      newElement.is_friend = await getFriendState(id, sentUser._id);
       // find number of same_friends
       if (thisUser.friends.length != 0 && sentUser.friends.length != 0) {
         newElement.same_friends = countSameFriend(thisUser.friends, sentUser.friends);
@@ -397,6 +399,12 @@ router.post("/get_list_blocks", verify, async(req, res) => {
 //   "count": 10
 // }
 router.post('/get_user_friends', verify, async (req, res) => {
+
+  // let user = await User.findById('6383a7b7da8a5bde839c58cc');
+  // res.json(user.blockedList);
+
+  // return;
+
   // input
   let { user_id, page } = req.query;
   // user id from token
@@ -418,7 +426,7 @@ router.post('/get_user_friends', verify, async (req, res) => {
   // var
   let thisUser, targetUser;
 
-  try {
+  // try {
 
     thisUser = await User.findById(id).select({ "friends": 1 });
 
@@ -434,102 +442,111 @@ router.post('/get_user_friends', verify, async (req, res) => {
       targetUser = thisUser;
     }
 
-    await targetUser.populate({ path: 'friends.friend', select: 'friends' }).execPopulate();
+    await targetUser.populate({ path: 'friends.friend', select: 'friends'}).execPopulate();
     // console.log(targetUser);
 
     let endFor = targetUser.friends.length < 20*page ? targetUser.friends.length : 20*page;
     let startFor = 20*(page-1);
     for (let i = startFor; i < endFor; i++) {
       let x = targetUser.friends[i];
+      if (x.friend == null) continue;
       let friend = await User.findById(x.friend._id);
+      await friend.populate({path: 'friends.friend', select: 'friends'}).execPopulate();
+
       let friendInfor = {
         user_id: null, // id of this guy
         username: null,
         avatar: null,
         same_friends: 0, //number of same friends
-        created: null //time start friend between this guy and targetUser
+        created: null, //time start friend between this guy and targetUser
+        is_friend: "NOT_FRIEND"
       }
       friendInfor.user_id = x.friend._id.toString();
       friendInfor.username = friend.name;
       friendInfor.avatar = friend.avatar.url;
       friendInfor.created = validTime.timeToSecond(x.createdAt) ;
+      friendInfor.is_friend = await getFriendState(id, x.friend._id);
 
-      if (!thisUser._id.equals(x.friend._id))
-        if (thisUser.friends.length > 0 && x.friend.friends.length > 0) {
-          friendInfor.same_friends = countSameFriend(thisUser.friends, x.friend.friends);
-        }
+      // if (!thisUser._id.equals(x.friend._id))
+      if (thisUser.friends.length > 0 && friend.friends.length > 0) {
+        friendInfor.same_friends = countSameFriend(thisUser.friends, friend.friends);
+      }
       data.friends.push(friendInfor);
     }
     // if (data.friends.length == 0) return callRes(res, responseError.NO_DATA_OR_END_OF_LIST_DATA, 'friends');
     data.total = targetUser.friends.length;
     return callRes(res, responseError.OK, data);
-  } catch (error) {
-    return callRes(res, responseError.UNKNOWN_ERROR, error.message);
-  }
+  // } catch (error) {
+  //   return callRes(res, responseError.UNKNOWN_ERROR, error.message);
+  // }
 })
 
 router.post('/get_list_suggested_friends', verify, async (req, res) => {
   try {
-  const { index, count } = req.query;
-  // check input data
-  if ( index === undefined|| count === undefined)
-    return callRes(res, responseError.PARAMETER_IS_NOT_ENOUGH, ': index, count');
-  if (!checkInput.checkIsInteger (index) || !checkInput.checkIsInteger (count))
-    return callRes(res, responseError.PARAMETER_TYPE_IS_INVALID, ': index, count');
-  if (index < 0 || count < 0) return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, ': index, count');
+    let { index, count } = req.query;
+    // check input data
+    if ( index === undefined|| count === undefined)
+      return callRes(res, responseError.PARAMETER_IS_NOT_ENOUGH, ': index, count');
+    index = Number(index), count = Number(count);
+    if (!checkInput.checkIsInteger (index) || !checkInput.checkIsInteger (count))
+      return callRes(res, responseError.PARAMETER_TYPE_IS_INVALID, ': index, count');
+    if (index < 0 || count < 0) return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, ': index, count');
 
-  let id = req.user.id;
-  let data = {
-    total: 0,
-    list_users: []
-  };
-  let listID = [], list_users = [];
-  let thisUser, targetUser;
-  thisUser = await User.findById(id);
-  if (!thisUser) return callRes(res, responseError.NO_DATA_OR_END_OF_LIST_DATA, 'thisUser');
-  if (thisUser.friends.length > 0) {
-    for (let x of thisUser.friends){
-      targetUser = await User.findById(x.friend).select({ "friends": 1 });
-      if (!targetUser) return callRes(res, responseError.NO_DATA_OR_END_OF_LIST_DATA, 'targetUser');
-      await targetUser.populate({ path: 'friends.friend', select: 'friends _id name avatar' }).execPopulate();
-      for (let y of targetUser.friends) {
-        if (!y.friend._id.equals(id) && !listID.includes(y.friend._id)) {
-          let e = {
-            user_id: y.friend._id,
-            username: (y.friend.name) ? y.friend.name : null,
-            avatar: (y.friend.avatar) ? y.friend.avatar.url : null,
-            same_friends: 0
+    let id = req.user.id;
+    let data = {
+      total: 0,
+      list_users: []
+    };
+    let listID = [], list_users = [];
+    let thisUser, targetUser;
+    thisUser = await User.findById(id);
+    if (!thisUser) return callRes(res, responseError.NO_DATA_OR_END_OF_LIST_DATA, 'thisUser');
+    if (thisUser.friends.length > 0) {
+      for (let x of thisUser.friends){
+        targetUser = await User.findById(x.friend).select({ "friends": 1 });
+        if (!targetUser) return callRes(res, responseError.NO_DATA_OR_END_OF_LIST_DATA, 'targetUser');
+        await targetUser.populate({ path: 'friends.friend', select: 'friends _id name avatar' }).execPopulate();
+        for (let y of targetUser.friends) {
+          if (!y.friend._id.equals(id) && !listID.includes(y.friend._id)) {
+            let e = {
+              user_id: y.friend._id,
+              username: (y.friend.name) ? y.friend.name : null,
+              avatar: (y.friend.avatar) ? y.friend.avatar.url : null,
+              same_friends: 0,
+              is_friend: await getFriendState(id, y.friend._id)
+            }
+            if (thisUser.friends.length > 0 && y.friend.friends.length > 0){
+              e.same_friends = countSameFriend(thisUser.friends,y.friend.friends);
+            }
+            list_users.push(e);
+            listID.push(y.friend.id);
           }
-          if (thisUser.friends.length > 0 && y.friend.friends.length > 0){
-            e.same_friends = countSameFriend(thisUser.friends,y.friend.friends);
-          }
-          list_users.push(e);
-          listID.push(y.friend.id);
         }
       }
     }
-  }
-  if (list_users.length == 0){
-    let users = await User.find({'user._id': {$ne: id}})
-      .select({ "friends": 1, "_id": 1, "name": 1, "avatar": 1 })
-      .sort("-createdAt");
-    if (!users) return callRes(res, responseError.NO_DATA_OR_END_OF_LIST_DATA, 'no other user');
-    for (let y of users) {
-        let e = {
-          user_id: y._id,
-          username: y.name,
-          avatar: (y.avatar) ? y.avatar.url : null,
-          same_friends: 0
-        }
-        if (thisUser.friends.length > 0 && y.friends.length > 0){
-          e.same_friends = countSameFriend(thisUser.friends,y.friends);
-        }
-        list_users.push(e);
+    if (list_users.length == 0){
+      let users = await User.find({'user._id': {$ne: id}})
+        .select({ "friends": 1, "_id": 1, "name": 1, "avatar": 1 })
+        .sort("-createdAt");
+      if (!users) return callRes(res, responseError.NO_DATA_OR_END_OF_LIST_DATA, 'no other user');
+      for (let y of users) {
+          let e = {
+            user_id: y._id,
+            username: y.name,
+            avatar: (y.avatar) ? y.avatar.url : null,
+            same_friends: 0,
+            is_friend: await getFriendState(id, y._id)
+          }
+          if (thisUser.friends.length > 0 && y.friends.length > 0){
+            e.same_friends = countSameFriend(thisUser.friends,y.friends);
+          }
+          list_users.push(e);
+      }
     }
-  }
-  data.list_users = list_users.slice(index, index + count);
-  data.total = list_users.length;
-  return callRes(res, responseError.OK, data);
+    let endIndex = Math.min(index + count, list_users.length);
+    data.list_users = list_users.slice(index, endIndex);
+    data.total = list_users.length;
+    return callRes(res, responseError.OK, data);
   } catch (error) {
     return callRes(res, responseError.UNKNOWN_ERROR, error.message);
   }
@@ -543,6 +560,30 @@ function countSameFriend(x, y) {
     return yy.indexOf(val) != -1;
   });
   return z.length;
+}
+
+async function getFriendState(curUserId, targetUserId) {
+  let curUser = await User.findById(curUserId);
+  let targetUser = await User.findById(targetUserId);
+  if (curUser._id.equals(targetUser._id)){
+    return "ME";
+  }
+  if (curUser.blockedList.findIndex(element => element.user._id.equals(targetUser._id)) >= 0){
+    return "BLOCKING";
+  }
+  if (targetUser.blockedList.findIndex(element => element.user._id.equals(curUser._id)) >= 0){
+    return "BLOCKED";
+  }
+  if (curUser.friendRequestReceived.findIndex(element => element.fromUser._id.equals(targetUser._id)) >= 0){
+    return "REQUESTED";
+  }
+  if (targetUser.friendRequestReceived.findIndex(element => element.fromUser._id.equals(curUser._id)) >= 0){
+    return "REQUESTING";
+  }
+  if (curUser.friends.findIndex(element => element.friend._id.equals(targetUser._id)) >= 0){
+    return "IS_FRIEND";
+  }
+  return "NOT_FRIEND";
 }
 
 module.exports = router;

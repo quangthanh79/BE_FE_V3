@@ -107,11 +107,11 @@ router.post ('/get_user_info', async (req, res) => {
       } else {
         let senderOrNot = user.friendRequestSent.findIndex(element => element._id.equals(tokenUser.id));
         if(senderOrNot >= 0) {
-          data.is_friend = "REQUESTING";
+          data.is_friend = "REQUESTED";
         } else {
           let receiverOrNot = user.friendRequestReceived.findIndex(element => element.fromUser._id.equals(tokenUser.id));
           if(receiverOrNot >= 0) {
-            data.is_friend = "REQUESTED";
+            data.is_friend = "REQUESTING";
           }
         }
       }
