@@ -426,7 +426,7 @@ router.post('/get_user_friends', verify, async (req, res) => {
   // var
   let thisUser, targetUser;
 
-  // try {
+  try {
 
     thisUser = await User.findById(id).select({ "friends": 1 });
 
@@ -476,9 +476,9 @@ router.post('/get_user_friends', verify, async (req, res) => {
     // if (data.friends.length == 0) return callRes(res, responseError.NO_DATA_OR_END_OF_LIST_DATA, 'friends');
     data.total = targetUser.friends.length;
     return callRes(res, responseError.OK, data);
-  // } catch (error) {
-  //   return callRes(res, responseError.UNKNOWN_ERROR, error.message);
-  // }
+  } catch (error) {
+    return callRes(res, responseError.UNKNOWN_ERROR, error.message);
+  }
 })
 
 router.post('/get_list_suggested_friends', verify, async (req, res) => {
