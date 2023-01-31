@@ -96,9 +96,10 @@ router.post('/add_dialog',verify, async (req, res) => {
             });    
             }
             var tokenDevice = partner.tokenFCM;
-            console.log("tokenDevice: "+ tokenDevice);
-            const message = {
-                notification: {
+            if(tokenDevice.length != 0){
+                console.log("tokenDevice: "+ tokenDevice);
+                const message = {
+                    notification: {
                     title: user.name,
                     body: content
                 },
@@ -110,7 +111,9 @@ router.post('/add_dialog',verify, async (req, res) => {
             })
             .catch(function(error){
                 console.log("Error sending message: ", error)
-        })
+            })
+            }
+            
         }
 
         if(user){
