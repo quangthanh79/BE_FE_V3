@@ -439,7 +439,7 @@ router.post('/get_user_friends', verify, async (req, res) => {
       if (!targetUser) return callRes(res, responseError.PARAMETER_VALUE_IS_INVALID, 'targetUser');
 
     } else {
-      targetUser = thisUser;
+      targetUser = await User.findById(id).select({ "friends": 1 });
     }
 
     await targetUser.populate({ path: 'friends.friend', select: 'friends'}).execPopulate();
@@ -451,7 +451,6 @@ router.post('/get_user_friends', verify, async (req, res) => {
       let x = targetUser.friends[i];
       if (x.friend == null) continue;
       let friend = await User.findById(x.friend._id);
-      await friend.populate({path: 'friends.friend', select: 'friends'}).execPopulate();
 
       let friendInfor = {
         user_id: null, // id of this guy
