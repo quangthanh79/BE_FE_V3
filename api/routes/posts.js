@@ -114,7 +114,8 @@ router.post('/get_list_videos', async (req, res) => {
                 return setAndSendResponse(res, responseError[user]);
             }
         }
-        posts = await Post.find({"video.url": { $ne: undefined }}).populate('author').sort("-created");
+        posts = await Post.find({"video.url": { $ne: undefined }}).populate('author')
+        .sort("-created");
     } catch (err) {
         return setAndSendResponse(res, responseError.CAN_NOT_CONNECT_TO_DB);
     }
