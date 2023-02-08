@@ -252,7 +252,7 @@ router.post('/get_list_posts', async (req, res) => {
         posts: slicePosts.map(post => {
             return {
                 id: post._id,
-                image: post.image.length > 0 ? post.image.map(image => { return {id: image._id, url: image.url};}) : null,
+                image: post.image !== null && post.image.length > 0 ? post.image.map(image => { return {id: image._id, url: image.url};}) : null,
                 video: post.video.url ? {
                     url: post.video.url,
                     thumb: null
@@ -295,6 +295,7 @@ router.post('/get_list_posts_in_profile',verify, async (req, res) => {
     //   return callRes(res, responseError.NO_DATA_OR_END_OF_LIST_DATA, 'user');
     // }
     var data;
+    console.log('on profile');
     // PARAMETER_IS_NOT_ENOUGH
     if((index !== 0 && !index) || (count !== 0 && !count)) {
         console.log("No have parameter index, count");
@@ -339,7 +340,7 @@ router.post('/get_list_posts_in_profile',verify, async (req, res) => {
             }
         }
         var targetUser = await User.findById(targetId)
-        Post.find({author: targetUser}).populate('author').exec(function (err, docs) {
+        Post.find({author: targetUser}).populate('author').sort("-created").exec(function (err, docs) {
             if (err) console.log("Error on sort:" + err.toString());
 
             // NO_DATA_OR_END_OF_LIST_DATA
@@ -349,7 +350,6 @@ router.post('/get_list_posts_in_profile',verify, async (req, res) => {
             }
         
             let slicePosts = docs.slice(index, index + count);
-        
             // NO_DATA_OR_END_OF_LIST_DATA
             if(slicePosts.length < 1) {
                 console.log('No have posts on slice');
@@ -484,7 +484,7 @@ function can_edit(user, author) {
 }
 
 function uploadFile(file) {
-    const newNameFile = new Date().toISOString() + file.originalname;
+    const newNameFile = new Date().toISOString();
     const blob = bucket.file(newNameFile);
     const blobStream = blob.createWriteStream({
         metadata: {
@@ -706,23 +706,23 @@ router.post('/delete_post', verify, async (req, res) => {
         return setAndSendResponse(res, responseError.NOT_ACCESS);
     }
 
-    if(post.image.length > 0) {
+    if(post.image) {
         for(let image of post.image) {
             try {
                 await deleteRemoteFile(image.filename);
             } catch (err) {
-                console.log("Khong xoa duoc anh");
-                return setAndSendResponse(res, responseError.EXCEPTION_ERROR);
+                console.log("Khong xoa duoc anh" + err.toString());
+                //return setAndSendResponse(res, responseError.EXCEPTION_ERROR);
             }
         }
     }
 
-    if(post.video.url) {
+    if(post.video) {
         try {
             await deleteRemoteFile(post.video.filename);
         } catch (err) {
             console.log("Khong xoa duoc video");
-            return setAndSendResponse(res, responseError.EXCEPTION_ERROR);
+            //return setAndSendResponse(res, responseError.EXCEPTION_ERROR);
         }
     }
 
@@ -730,13 +730,13 @@ router.post('/delete_post', verify, async (req, res) => {
         try {
             const deletedReportPost = await Comment.deleteMany({_id:{$in:post.comments}});
         } catch (err) {
-            console.log("Can not connect to DB");
-            return setAndSendResponse(res, responseError.CAN_NOT_CONNECT_TO_DB);
+            console.log("Can not connect to DB on delete comment");
+            //return setAndSendResponse(res, responseError.CAN_NOT_CONNECT_TO_DB);
         }
     }
 
     try {
-        const deletedPost = await Post.findByIdAndDelete(id);
+        await Post.findByIdAndDelete(id, { useFindAndModify: false});
         return res.status(200).send({
             code: "1000",
             message: "OK"
@@ -746,7 +746,7 @@ router.post('/delete_post', verify, async (req, res) => {
             console.log("Sai id");
             return setAndSendResponse(res, responseError.POST_IS_NOT_EXISTED);
         }
-        console.log("Can not connect to DB");
+        console.log("Can not connect to DB" + err.toString());
         return setAndSendResponse(res, responseError.CAN_NOT_CONNECT_TO_DB);
     }
 })
@@ -772,7 +772,7 @@ MAXIMUM_NUMBER_OF_IMAGES
 MAX_WORD_POST cua described
 */
 router.post('/edit_post', cpUpload, verify, async (req, res) => {
-    var { id, described, status} = req.query;
+    var { id, described} = req.query;
     var image, video;
     if(req.files) {
         image = req.files.image;
@@ -786,18 +786,13 @@ router.post('/edit_post', cpUpload, verify, async (req, res) => {
     }
 
     // PARAMETER_TYPE_IS_INVALID
-    if((described && typeof described !== "string") || (status && typeof status !== "string")) {
+    if((described && typeof described !== "string")) {
         console.log("PARAMETER_TYPE_IS_INVALID");
         return setAndSendResponse(res, responseError.PARAMETER_TYPE_IS_INVALID);
     }
 
     if(described && countWord(described) > MAX_WORD_POST) {
         console.log("MAX_WORD_POST");
-        return setAndSendResponse(res, responseError.PARAMETER_VALUE_IS_INVALID);
-    }
-
-    if(status && !statusArray.includes(status)) {
-        console.log("Sai status");
         return setAndSendResponse(res, responseError.PARAMETER_VALUE_IS_INVALID);
     }
 
@@ -827,28 +822,26 @@ router.post('/edit_post', cpUpload, verify, async (req, res) => {
         console.log("Not Access");
         return setAndSendResponse(res, responseError.NOT_ACCESS);
     }
-    post.image = [];
-    post.video = null;
-    post.described = described;
+    // post.described = described;
     if(post.image != null) {
-        for(var e in post.image) {
-            deleteRemoteFile(post.image[e].filename);
+        for(let i = 0; i < post.image.length; i++) {
+            const e = post.image[i];
+            await deleteRemoteFile(e.filename);
         }
     }
     if(post.video != null) {
-        if(post.video.filename) deleteRemoteFile(post.video.filename);
+        if(post.video.filename) await deleteRemoteFile(post.video.filename);
     }
-
     let promises;
-
+    let newImages, newVideo;
     if(image) {
         // MAXIMUM_NUMBER_OF_IMAGES
         if(image.length > MAX_IMAGE_NUMBER) {
             console.log("MAXIMUM_NUMBER_OF_IMAGES");
             return setAndSendResponse(res, responseError.MAXIMUM_NUMBER_OF_IMAGES);
         }
-
         for(const item_image of image) {
+            console.log(item_image);
 
             // FILE_SIZE_IS_TOO_BIG
             if (item_image.buffer.byteLength > MAX_SIZE_IMAGE) {
@@ -862,7 +855,8 @@ router.post('/edit_post', cpUpload, verify, async (req, res) => {
         });
         try {
             const file = await Promise.all(promises);
-            post.image = file;
+            console.log(file);
+            newImages = file;
         } catch (err) {
             console.error(err);
             console.log("UPLOAD_FILE_FAILED");
@@ -890,17 +884,19 @@ router.post('/edit_post', cpUpload, verify, async (req, res) => {
         });
         try {
             const file = await Promise.all(promises);
-            post.video = file[0];
+            newVideo = file[0];
         } catch (err) {
             console.log("UPLOAD_FILE_FAILED");
             return setAndSendResponse(res, responseError.UPLOAD_FILE_FAILED);
         }
-
-
     }
 
     try {
-        const savedPost = await post.save();
+        const savedPost = await Post.findByIdAndUpdate(id,
+            {described:described,
+            image:newImages,
+            video:newVideo
+        }, {new: true, useFindAndModify: false});
         return res.status(201).send({
             code: "1000",
             message: "OK",

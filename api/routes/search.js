@@ -40,7 +40,7 @@ router.post('/search', verify, (req, res) => {
 
     console.log("searching posts with keyword: " + keyword)
     var found_posts = []
-    Post.find({ "described": {$ne: null}}).populate('author').exec((err, posts) => {        // problem with DB
+    Post.find({ "described": {$ne: null}}).populate('author').sort("-created").exec((err, posts) => {        // problem with DB
         if (err) return setAndSendResponse(res, responseError.CAN_NOT_CONNECT_TO_DB);
         // NO_DATA_OR_END_OF_LIST_DATA
         if(posts.length < 1) {
@@ -129,7 +129,7 @@ router.post('/search', verify, (req, res) => {
             })
         });
         posts = posts.filter(item => !found_posts.includes(item))
-found_posts = found_posts.slice(index, index+count)
+        found_posts = found_posts.slice(index, index+count);
         if (found_posts.length < 1) return callRes(res, responseError.NO_DATA_OR_END_OF_LIST_DATA);
         const data = {
             posts: found_posts.map(  (post) => {
